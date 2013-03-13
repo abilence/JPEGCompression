@@ -5,9 +5,22 @@
 % You can also try preserving the 8 largest coefficients (out of the total of 8x8=64), and simply rounding them to the closest integer.
 % Visualize the results.
 
-result = jpeg_compression(image_path)
+result = jpeg_compression(image_path, qf)
 
-    I = imread(image_path);
+    % reads image path and ensures anything outside of 0-255 is bound
+    I = uint8(imread(image_path));
+    
+    [height,width] = size(I);
+    
+    
+    % crops image to ensure it can be broken into 8x8 blocks
+    Im_red = imcrop(I,[1,1, width, height ]);
+    
+    % transforms it into other colour space 
+%    I_YCR = im2double(rgb2ycbrc(Im_red));
+    
+    % or deduct 128 from all - Normalise
+    Im_ded = im2double(Im_red - 128);
 
     % or if we do this by scale quantization
 
@@ -24,6 +37,9 @@ result = jpeg_compression(image_path)
             24 35 55 64 181 104 113 192;
             49 64 78 87 103 121 120 101;
             72 92 95 98 112 100 103 199];
+        
+        % increase accuracy by making it a double
+        q_y = double(q_y); 
 
         % Quantization for Chrominance
         q_C = ...
@@ -35,6 +51,16 @@ result = jpeg_compression(image_path)
             99 99 99 99 99 99 99 99;
             99 99 99 99 99 99 99 99;
             99 99 99 99 99 99 99 99];
+        
+    q_max = 255;
+    
+    if qf < 50
+        q_scale = floor(5000 / qf);
+    else
+        q_scale = 200 - 2 * qf;
+    end
+    
+    q_y = round(q_y * q_scale / 100)
 
     % this creates the cosine transformation matrix which is the dct for matrix multiplication
     dct_matrix = dctmtx(8);
@@ -44,17 +70,17 @@ result = jpeg_compression(image_path)
     idct = @(block_struct) dct_matrix' * @(block_struct) dct_matrix;
 
     % breaks image into 8x8 blocks
-    B = blockproc(I, [8 8], dct).*q_max;
-
+    B = blockproc(I_ded, [8 8], dct).*q_max;
     % Quantization through dividing and then rounding
-    Xq = blockproc(X, [8 8], @(block_struct) round(round(block_struct.data)./ q_y));
+    Xq = blockproc(B, [8 8], @(block_struct) round(round(block_struct.data)./ q_y));
     % Now multiple through
     Xd = blockproc(Xq,[8 8], @(block_struct)block_struct.data) .*q_y));
-
-    result = blockproc(Xd, [8 8], idct);
+    
+    % denormalization
+    result = blockproc(Xd ./ q_max, [8 8], idct) + 128;
 
     % shows the border around the image
-    I, imshow(result, 'Border', 'tight');
+    imshow(result, 'Border', 'tight');
 
     
  
