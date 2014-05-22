@@ -81,10 +81,3 @@ result = jpeg_compression(image_path, qf)
 
     % shows the border around the image
     imshow(result, 'Border', 'tight');
-
-    
- 
-    
-   
-
-
